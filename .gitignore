@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+
+# Minecraft / Fabric
+run/
+run_server/
+out/
+.gradle_dist/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+crash-reports/
+
+# Java
+*.class

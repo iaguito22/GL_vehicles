@@ -1,0 +1,13 @@
+{
+  "itemgroup.gl_vehicles.vehicles": "GL Vehicles",
+  "item.gl_vehicles.chainsaw_engine": "Chainsaw Engine",
+  "item.gl_vehicles.engine_1l": "1.0L Engine",
+  "item.gl_vehicles.engine_1_9tdi": "1.9 TDI Engine",
+  "item.gl_vehicles.engine_v6": "V6 Engine",
+  "item.gl_vehicles.engine_v12": "V12 Engine",
+  "item.gl_vehicles.electric_motor": "Electric Motor",
+  "item.gl_vehicles.wrench": "Wrench",
+
+  "item.gl_vehicles.fuel_can": "Fuel Can",
+  "entity.gl_vehicles.tractor": "Tractor"
+}

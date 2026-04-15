@@ -1,0 +1,42 @@
+{
+  "chainsaw_idle": {
+    "category": "neutral",
+    "subtitle": "subtitles.gl_vehicles.chainsaw",
+    "sounds": [
+      {
+        "name": "gl_vehicles:chainsaw_idle",
+        "stream": true
+      }
+    ]
+  },
+  "tdi_idle": {
+    "category": "neutral",
+    "subtitle": "subtitles.gl_vehicles.tdi",
+    "sounds": [
+      {
+        "name": "gl_vehicles:tdi_idle",
+        "stream": true
+      }
+    ]
+  },
+  "v12_idle": {
+    "category": "neutral",
+    "subtitle": "subtitles.gl_vehicles.v12",
+    "sounds": [
+      {
+        "name": "gl_vehicles:v12_idle",
+        "stream": true
+      }
+    ]
+  },
+  "electric_whine": {
+    "category": "neutral",
+    "subtitle": "subtitles.gl_vehicles.electric",
+    "sounds": [
+      {
+        "name": "gl_vehicles:electric_whine",
+        "stream": true
+      }
+    ]
+  }
+}

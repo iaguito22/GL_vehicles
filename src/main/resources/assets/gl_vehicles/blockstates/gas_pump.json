@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "gl_vehicles:block/gas_pump" }
+  }
+}
