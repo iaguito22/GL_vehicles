@@ -20,12 +20,16 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.packet.Packet;
+import net.minecraft.network.listener.ClientPlayPacketListener;
+import net.minecraft.network.packet.s2c.play.EntitySpawnS2CPacket;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
@@ -38,22 +42,17 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
-    protected static final TrackedData<Integer> COLOR = DataTracker.registerData(AbstractVehicleEntity.class,
-            TrackedDataHandlerRegistry.INTEGER);
-    protected static final TrackedData<Float> AERODYNAMICS = DataTracker.registerData(AbstractVehicleEntity.class,
-            TrackedDataHandlerRegistry.FLOAT);
-    protected static final TrackedData<Float> FUEL = DataTracker.registerData(AbstractVehicleEntity.class,
-            TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Float> SYNC_YAW = DataTracker.registerData(AbstractVehicleEntity.class,
-            TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Integer> GEAR = DataTracker.registerData(AbstractVehicleEntity.class,
-            TrackedDataHandlerRegistry.INTEGER);
-    public static final TrackedData<Float> RPM_SYNC = DataTracker.registerData(AbstractVehicleEntity.class,
-            TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Float> CHASSIS_HEALTH = DataTracker.registerData(AbstractVehicleEntity.class,
-            TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Boolean> IS_DESTROYED = DataTracker.registerData(AbstractVehicleEntity.class,
-            TrackedDataHandlerRegistry.BOOLEAN);
+    protected static final TrackedData<Integer> COLOR = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
+    protected static final TrackedData<Float> AERODYNAMICS = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    protected static final TrackedData<Float> FUEL = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> SYNC_YAW = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Integer> GEAR = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
+    public static final TrackedData<Float> RPM_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> CHASSIS_HEALTH = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Boolean> IS_DESTROYED = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+    public static final TrackedData<Integer> OCCUPIED_SLOTS = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
+    public static final TrackedData<Float> ACCEL_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> MAX_SPEED_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
 
     public static final float MAX_CHASSIS_HEALTH = 300.0f;
 
@@ -84,6 +83,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         this.inventory = new SimpleInventory(inventorySize);
         this.inventory.addListener(sender -> this.calculateStats());
         this.vehicleYaw = this.getYaw();
+        this.setStepHeight(1.0f); // Permite subir bloques/slabs sin trompicones
+        this.calculateStats();
     }
 
     @Override
@@ -96,17 +97,29 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         this.dataTracker.startTracking(RPM_SYNC, 0.0f);
         this.dataTracker.startTracking(CHASSIS_HEALTH, MAX_CHASSIS_HEALTH);
         this.dataTracker.startTracking(IS_DESTROYED, false);
+        this.dataTracker.startTracking(OCCUPIED_SLOTS, 0);
+        this.dataTracker.startTracking(ACCEL_SYNC, 0.0f);
+        this.dataTracker.startTracking(MAX_SPEED_SYNC, 0.0f);
     }
 
     // BAJAR AL JUGADOR (Estaba muy alto)
     @Override
     public double getMountedHeightOffset() {
-        return 0.34D; // Ajusta este valor si sigue flotando (antes era por defecto ~1.0)
+        return 0.34D;
     }
 
     @Override
     public float getYaw(float tickDelta) {
         return this.dataTracker.get(SYNC_YAW);
+    }
+
+    @Override
+    public void updateTrackedPositionAndAngles(double x, double y, double z,
+            float yaw, float pitch, int stepsCount, boolean interpolate) {
+        if (isLocalPlayerDriving()) {
+            return;
+        }
+        super.updateTrackedPositionAndAngles(x, y, z, yaw, pitch, 10, true);
     }
 
     @Override
@@ -119,6 +132,18 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         return this.dataTracker.get(SYNC_YAW);
     }
 
+    public float getRpm() {
+        return this.rpm;
+    }
+
+    public int getGear() {
+        return this.currentGear;
+    }
+
+    public float getForwardSpeed() {
+        return (float)this.forwardSpeed;
+    }
+
     public float getFuel() {
         return this.dataTracker.get(FUEL);
     }
@@ -128,6 +153,15 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     }
 
     public void calculateStats() {
+        int occupied = 0;
+        if (this.inventory.size() > 4) {
+            for (int i = 4; i < this.inventory.size(); i++) {
+                if (!this.inventory.getStack(i).isEmpty())
+                    occupied++;
+            }
+        }
+        this.dataTracker.set(OCCUPIED_SLOTS, occupied);
+
         float enginePower = 0.0f;
         float tireGrip = 0.0f;
         float tireWear = 1.0f;
@@ -144,17 +178,28 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         }
 
         this.weight = getBaseWeight() + getAttachmentWeight() + 30.0f;
+        
+        // El peso de referencia es 100. A más peso, menos aceleración y punta.
+        float weightFactor = 100.0f / this.weight;
 
         if (hasEngine && hasWheels) {
             this.grip = Math.max(0.1f, (tireGrip / tireWear));
-            // Tractor pesado -> menos aceleración
-            this.accelerationStat = (0.04f * enginePower);
-            this.maxSpeed = 0.45f * enginePower;
+            
+            // La potencia base se ve afectada directamente por el factor de peso
+            this.accelerationStat = (0.024f * enginePower) * weightFactor;
+            this.maxSpeed = (0.90f * enginePower) * (float)Math.sqrt(weightFactor); 
         } else {
             this.grip = 0.0f;
             this.accelerationStat = 0.0f;
             this.maxSpeed = 0.0f;
             this.forwardSpeed = 0.0;
+        }
+
+        // Sincronizar con el cliente si estamos en el servidor
+        if (!this.getWorld().isClient) {
+            this.dataTracker.set(ACCEL_SYNC, this.accelerationStat);
+            this.dataTracker.set(MAX_SPEED_SYNC, this.maxSpeed);
+            this.dataTracker.set(GEAR, this.currentGear);
         }
     }
 
@@ -196,29 +241,27 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             this.setHeadYaw(this.vehicleYaw);
             this.setBodyYaw(this.vehicleYaw);
 
-            // --- SONIDO DEL MOTOR (cliente) ---
             boolean destroyed = this.dataTracker.get(IS_DESTROYED);
             if (this.hasPassengers() && !destroyed && !getEngineStack().isEmpty()) {
                 float rpmVal = this.dataTracker.get(RPM_SYNC);
                 float basePitch = 0.6f;
                 float maxPitch = 1.4f;
-                
+
                 ItemStack engineStack = getEngineStack();
                 if (engineStack.getItem() instanceof com.gl.vehicles.item.EngineItem engine) {
                     basePitch = engine.getBasePitch();
                     maxPitch = engine.getMaxPitch();
                 }
 
-                float pitch = basePitch + rpmVal * (maxPitch - basePitch); 
+                float pitch = basePitch + rpmVal * (maxPitch - basePitch);
                 this.getWorld().playSound(
-                    this.getX(), this.getY(), this.getZ(),
-                    net.minecraft.sound.SoundEvents.BLOCK_FIRE_EXTINGUISH, // placeholder hasta custom sound
-                    net.minecraft.sound.SoundCategory.NEUTRAL,
-                    1.0f, pitch, false // Subido a 1.0f
+                        this.getX(), this.getY(), this.getZ(),
+                        net.minecraft.sound.SoundEvents.BLOCK_FIRE_EXTINGUISH,
+                        net.minecraft.sound.SoundCategory.NEUTRAL,
+                        1.0f, pitch, false 
                 );
             }
 
-            // --- PARTICULAS EN CLIENTE ---
             if (this.age % 3 == 0) {
                 float fuel = this.dataTracker.get(FUEL);
                 float health = this.dataTracker.get(CHASSIS_HEALTH);
@@ -228,56 +271,66 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
                     double ox = (rand.nextDouble() - 0.5) * 0.4;
                     double oz = (rand.nextDouble() - 0.5) * 0.4;
                     this.getWorld().addParticle(
-                        net.minecraft.particle.ParticleTypes.LARGE_SMOKE,
-                        this.getX() + ox, this.getY() + this.getHeight() * 0.8, this.getZ() + oz,
-                        0, 0.04, 0
-                    );
+                            net.minecraft.particle.ParticleTypes.LARGE_SMOKE,
+                            this.getX() + ox, this.getY() + this.getHeight() * 0.8, this.getZ() + oz,
+                            0, 0.04, 0);
                 }
             }
         }
-
         super.tick();
-        if (this.getWorld().isClient)
-            return;
-
-        // --- COLISION POR VELOCIDAD (servidor) ---
-        Vec3d curVel = this.getVelocity();
-        double speedKmH = prevVelocityForCollision.horizontalLength() * 72.0;
-        if (speedKmH > 30.0) {
-            // Detectar cambio brusco de velocidad horizontal = choque contra bloque
-            double speedDelta = prevVelocityForCollision.horizontalLength() - curVel.horizontalLength();
-            if (speedDelta > 0.15) { // Frenada muy brusca: choque
-                float damage = (float) (speedDelta * 30.0); // Mucho más permisivo (antes 80.0)
-                applyChassisHit(damage);
-                
-                // Dañar al jugador para que salgan los bordes rojos
-                if (this.getFirstPassenger() instanceof PlayerEntity player) {
-                    player.damage(this.getWorld().getDamageSources().generic(), damage / 5.0f);
-                }
-            }
-        }
-        prevVelocityForCollision = curVel;
 
         boolean destroyed = this.dataTracker.get(IS_DESTROYED);
-        boolean canMove = !destroyed && !getEngineStack().isEmpty() && !getWheelStack().isEmpty() && getFuel() > 0;
+        float syncedAccel = this.dataTracker.get(ACCEL_SYNC);
+        float syncedMax = this.dataTracker.get(MAX_SPEED_SYNC);
+        float fuel = getFuel();
 
-        if (this.hasPassengers() && canMove) {
-            handlePhysics();
-            if (Math.abs(forwardSpeed) > 0.01) {
-                float fuelUsage = 0.005f;
-                ItemStack engineStack = getEngineStack();
-                if (engineStack.getItem() instanceof com.gl.vehicles.item.EngineItem engine) {
-                    fuelUsage *= engine.getFuelConsumption();
-                }
-                setFuel(getFuel() - fuelUsage);
-                applyWear(getEngineStack(), 0.00001f);
-                applyWear(getWheelStack(), 0.00002f);
+        // En el cliente usamos los datos sincronizados para canMove
+        // En el servidor podríamos usar los reales, pero los sincronizados ya son copia.
+        boolean canMove = !destroyed && syncedAccel > 0 && syncedMax > 0 && fuel > 0;
+
+        // Actualizar variables locales en cliente para que handlePhysics() funcione
+        if (this.getWorld().isClient) {
+            this.accelerationStat = syncedAccel;
+            this.maxSpeed = syncedMax;
+        }
+
+        // --- MOVIMIENTO Y FÍSICAS ---
+        if (this.getWorld().isClient) {
+            // Predicción para el conductor local
+            if (isLocalPlayerDriving() && canMove) {
+                handlePhysics();
+                this.move(MovementType.SELF, this.getVelocity());
             }
         } else {
-            forwardSpeed = 0;
-            applyFriction(0.85f);
+            // Lógica del Servidor
+            if (this.hasPassengers() && canMove) {
+                handlePhysics();
+                if (Math.abs(forwardSpeed) > 0.01) {
+                    float fuelUsage = 0.005f;
+                    ItemStack engineStack = getEngineStack();
+                    if (engineStack.getItem() instanceof com.gl.vehicles.item.EngineItem engine) {
+                        fuelUsage *= engine.getFuelConsumption();
+                    }
+                    setFuel(getFuel() - fuelUsage);
+                    applyWear(getEngineStack(), 0.00001f);
+                    applyWear(getWheelStack(), 0.00002f);
+                }
+            } else {
+                if (forwardSpeed != 0) {
+                    forwardSpeed = 0;
+                    applyFriction(0.85f);
+                }
+            }
+
+            this.move(MovementType.SELF, this.getVelocity());
+
+            if (!this.isOnGround()) {
+                this.setVelocity(this.getVelocity().add(0, -0.04, 0));
+            }
         }
-        this.move(MovementType.SELF, this.getVelocity());
+
+        if (this.getWorld().isClient)
+            return;
 
         if ((inputForward || inputBackward || inputLeft || inputRight) && this.age % 20 == 0) {
             sendDriverAlerts();
@@ -291,16 +344,28 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         if (health <= 0 && !this.dataTracker.get(IS_DESTROYED)) {
             this.dataTracker.set(IS_DESTROYED, true);
             this.removeAllPassengers();
-            // Spawn de humo inmediato (se hace en cliente por particulas)
             if (this.getWorld() instanceof net.minecraft.server.world.ServerWorld sw) {
                 sw.spawnParticles(net.minecraft.particle.ParticleTypes.LARGE_SMOKE,
-                    this.getX(), this.getY() + 0.5, this.getZ(), 20, 0.5, 0.5, 0.5, 0.02);
+                        this.getX(), this.getY() + 0.5, this.getZ(), 20, 0.5, 0.5, 0.5, 0.02);
             }
         }
     }
 
-    public float getChassisHealth() { return this.dataTracker.get(CHASSIS_HEALTH); }
-    public boolean isDestroyed()    { return this.dataTracker.get(IS_DESTROYED); }
+    public float getChassisHealth() {
+        return this.dataTracker.get(CHASSIS_HEALTH);
+    }
+
+    public boolean isDestroyed() {
+        return this.dataTracker.get(IS_DESTROYED);
+    }
+
+    private boolean isLocalPlayerDriving() {
+        if (!this.getWorld().isClient)
+            return false;
+        Entity driver = this.getFirstPassenger();
+        return driver instanceof PlayerEntity
+                && driver.getUuid().equals(net.minecraft.client.MinecraftClient.getInstance().player.getUuid());
+    }
 
     private void sendDriverAlerts() {
         if (!(this.getFirstPassenger() instanceof ServerPlayerEntity driver))
@@ -315,63 +380,141 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     }
 
     protected void handlePhysics() {
-        double speedPercent = maxSpeed > 0 ? (forwardSpeed / maxSpeed) : 0;
-        
-        // 5 Marchas basadas en porcentaje de velocidad máxima
-        int targetGear = 1;
-        if (speedPercent > 0.85) targetGear = 5;
-        else if (speedPercent > 0.60) targetGear = 4;
-        else if (speedPercent > 0.35) targetGear = 3;
-        else if (speedPercent > 0.15) targetGear = 2;
-        
-        if (forwardSpeed < 0.01) targetGear = 0;
+        // Asegurar que maxSpeed no sea 0 para evitar divisiones inválidas
+        double safeMaxSpeed = Math.max(0.1, maxSpeed);
+        double absSpeed = Math.abs(forwardSpeed);
+        double speedPercent = absSpeed / safeMaxSpeed;
 
-        if (targetGear != currentGear && shiftTimer <= 0 && targetGear > 0) {
+        // --- RANGOS DE CAMBIO (Estirados con Clipping) ---
+        float m1Max = 0.28f;
+        float m2Max = 0.55f;
+        float m3Max = 0.78f;
+        float m4Max = 0.92f;
+
+        // Umbral extra para que la marcha cambie "tarde" y haga clipping
+        float clipThreshold = 0.04f;
+
+        // --- LÓGICA DE MARCHAS SECUENCIAL Y DIRECCIÓN ---
+        int targetGear = currentGear;
+        if (shiftTimer <= 0) {
+            // Cambio de Dirección / Arranque (Solo si estamos casi parados)
+            if (absSpeed < 0.05) {
+                if (inputForward && currentGear <= 0) {
+                    targetGear = 1;
+                } else if (inputBackward && currentGear >= 0) {
+                    targetGear = -1;
+                } else if (!inputForward && !inputBackward && absSpeed < 0.01) {
+                    targetGear = 0; // Parking
+                }
+            }
+
+            // Lógica de Progresión (Solo si ya estamos en avance)
+            if (currentGear >= 1) {
+                if (inputForward) {
+                    if (currentGear == 1 && speedPercent > m1Max + clipThreshold)
+                        targetGear = 2;
+                    else if (currentGear == 2 && speedPercent > m2Max + clipThreshold)
+                        targetGear = 3;
+                    else if (currentGear == 3 && speedPercent > m3Max + clipThreshold)
+                        targetGear = 4;
+                    else if (currentGear == 4 && speedPercent > m4Max + clipThreshold)
+                        targetGear = 5;
+                }
+
+                // Reducción secuencial (Ajustada para que no caiga de vueltas al reducir)
+                if (currentGear == 5 && speedPercent < m4Max - 0.10)
+                    targetGear = 4;
+                else if (currentGear == 4 && speedPercent < m3Max - 0.10)
+                    targetGear = 3;
+                else if (currentGear == 3 && speedPercent < m2Max - 0.10)
+                    targetGear = 2;
+                else if (currentGear == 2 && speedPercent < m1Max - 0.08)
+                    targetGear = 1;
+            }
+        }
+
+        if (targetGear != currentGear && shiftTimer <= 0) {
             currentGear = targetGear;
-            this.dataTracker.set(GEAR, currentGear);
-            shiftTimer = 6; 
+            if (!this.getWorld().isClient) {
+                this.dataTracker.set(GEAR, currentGear);
+            }
+            if (currentGear == 1) shiftTimer = 5;
+            else if (currentGear == -1) shiftTimer = 12;
+            else if (currentGear > 1) shiftTimer = 12; // Cambio normal entre marchas cortas
         }
 
         double targetSpeed = 0.0;
-        double lerpFactor = (0.06 * getAerodynamics());
-        isLimiting = false;
+        // Compensación de Inercia: A más velocidad, usamos un lerp ligeramente más alto para vencer la resistencia
+        double speedBonus = (absSpeed / safeMaxSpeed) * 0.01;
+        double lerpFactor = accelerationStat + speedBonus;
 
         if (shiftTimer > 0) {
             shiftTimer--;
-            targetSpeed = forwardSpeed * 0.92; // Embrague
-            lerpFactor = 0.15;
+            targetSpeed = forwardSpeed * 0.98; // Embrague más suave (mantiene más inercia)
+            lerpFactor = 0.05; 
+            this.rpm = MathHelper.lerp(0.2f, this.rpm, 0.4f);
         } else {
-            if (inputForward) {
-                targetSpeed = maxSpeed;
-                lerpFactor = accelerationStat;
-                
-                // RPM Dinámicas para la barra (entre 0.0 y 1.0)
-                float gearRange = 0.25f;
-                float rpmVal = (float)((speedPercent % gearRange) / gearRange);
-                this.dataTracker.set(RPM_SYNC, rpmVal);
+            float targetRpm = 0.0f;
+
+            // GESTIÓN DE ACELERACIÓN / FRENADO (Suave)
+            if (currentGear >= 1) {
+                if (inputForward) {
+                    targetSpeed = maxSpeed;
+                } else if (inputBackward) {
+                    targetSpeed = 0;
+                    lerpFactor = accelerationStat * 1.5f; 
+                }
+            } else if (currentGear == -1) {
+                if (inputBackward) {
+                    targetSpeed = -maxSpeed * 0.4f;
+                } else if (inputForward) {
+                    targetSpeed = 0;
+                    lerpFactor = accelerationStat * 1.5f;
+                }
+            }
+
+            // Cálculo de RPM (Avance o Reversa)
+            if ((currentGear >= 1 && inputForward) || (currentGear == -1 && inputBackward)) {
+                float minS = 0, maxS = 1;
+                if (currentGear == 1 || currentGear == -1) { minS = 0.00f; maxS = m1Max; }
+                else if (currentGear == 2) { minS = m1Max; maxS = m2Max; }
+                else if (currentGear == 3) { minS = m2Max; maxS = m3Max; }
+                else if (currentGear == 4) { minS = m3Max; maxS = m4Max; }
+                else if (currentGear == 5) { minS = m4Max; maxS = 1.00f; }
+
+                targetRpm = (float) ((speedPercent - minS) / (maxS - minS));
+                targetRpm = MathHelper.clamp(targetRpm, 0.0f, 1.2f);
+
+                // --- LIMITADOR SUAVE (Sin frenazos bruscos) ---
+                if (targetRpm > 1.0f && currentGear < 5 && currentGear != -1) {
+                    targetRpm = 0.98f + (this.random.nextFloat() * 0.04f);
+                    lerpFactor *= 0.7f; // Menos intrusivo (antes 0.4)
+                }
 
                 if (speedPercent > 0.98f) {
                     isLimiting = (this.age % 2 == 0);
-                    if (isLimiting) targetSpeed = forwardSpeed * 0.85;
+                    targetRpm = 0.96f + (this.random.nextFloat() * 0.04f);
+                    // En lugar de lerpFactor 0, usamos uno muy pequeño para mantener la punta sin vibración
+                    targetSpeed = maxSpeed;
+                    lerpFactor = 0.005;
                 }
-            } else {
-                this.dataTracker.set(RPM_SYNC, 0.0f);
             }
-            if (inputBackward) {
-                targetSpeed = -maxSpeed * 0.55;
-                lerpFactor = accelerationStat;
-            }
+            float idle = (getFuel() > 0) ? 0.1f : 0.0f;
+            this.rpm = MathHelper.lerp(0.15f, this.rpm, Math.max(idle, targetRpm));
+        }
+        if (!this.getWorld().isClient) {
+            this.dataTracker.set(RPM_SYNC, this.rpm);
         }
 
-        lerpFactor = Math.min(1.0, Math.max(0.001, lerpFactor));
-        forwardSpeed = net.minecraft.util.math.MathHelper.lerp(lerpFactor, forwardSpeed, targetSpeed);
+        // --- ACTUALIZACIÓN DE VELOCIDAD FINAL ---
+        forwardSpeed = MathHelper.lerp(MathHelper.clamp(lerpFactor, 0, 1), forwardSpeed, targetSpeed);
+        
+        // Umbral de detención muy bajo para permitir que el tractor empiece a rodar
+        if (Math.abs(forwardSpeed) < 0.001) forwardSpeed = 0;
 
-        if (Math.abs(forwardSpeed) < 0.001)
-            forwardSpeed = 0.0;
-
-        float speedRatio = (float) Math.min(1.0, Math.abs(forwardSpeed) / Math.max(0.001, maxSpeed));
-        // El giro base ahora escala con el Grip (más grip = giro más cerrado)
-        float maxSteerRate = (6.0f + grip * 2.0f) * (1.0f - speedRatio * 0.5f);
+        float speedRatio = (float) Math.min(1.0, absSpeed / safeMaxSpeed);
+        // El giro cae un 85% a máxima velocidad (Subviraje)
+        float maxSteerRate = (6.0f + grip * 2.5f) * (1.0f - (float) Math.pow(speedRatio, 1.2) * 0.85f);
 
         float steerTarget = 0;
         if (inputLeft)
@@ -389,14 +532,34 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         }
 
         double yawRad = Math.toRadians(vehicleYaw);
-        this.setVelocity(-Math.sin(yawRad) * forwardSpeed, this.getVelocity().y - 0.08,
+        // Sincronización de velocidad con el motor de red de Minecraft
+        this.setVelocity(-Math.sin(yawRad) * forwardSpeed, this.getVelocity().y - 0.04,
                 Math.cos(yawRad) * forwardSpeed);
         this.velocityModified = true;
+        this.velocityDirty = true; // FORZAR PAQUETE DE VELOCIDAD PARA EVITAR STUTTER
 
         this.setYaw(vehicleYaw);
         this.setHeadYaw(vehicleYaw);
         this.setBodyYaw(vehicleYaw);
         this.dataTracker.set(SYNC_YAW, vehicleYaw);
+    }
+
+    @Override
+    protected void updatePassengerPosition(Entity passenger, PositionUpdater updater) {
+        if (this.hasPassenger(passenger)) {
+            // Sincronización milimétrica de la posición del pasajero con el vehículo
+            // Esto evita que al acelerar el jugador parezca "deslizarse" fuera del asiento
+            double x = this.getX();
+            double y = this.getY() + this.getMountedHeightOffset() + passenger.getHeightOffset();
+            double z = this.getZ();
+
+            updater.accept(passenger, x, y, z);
+
+            // Forzar que el pasajero mire en la dirección del vehículo o mantenga su cabeza
+            if (passenger instanceof PlayerEntity player) {
+                // Opcional: podrías forzar el yaw del jugador aquí si quisieras
+            }
+        }
     }
 
     private void applyFriction(float multiplier) {
@@ -414,7 +577,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             ItemStack held = player.getStackInHand(hand);
             if (held.isOf(ModItems.WRENCH)) {
                 if (this.dataTracker.get(IS_DESTROYED)) {
-                    // Reparar el vehículo destruido: drop de componentes y recursos, luego auto-destruir
+                    // Reparar el vehículo destruido: drop de componentes y recursos, luego
+                    // auto-destruir
                     repairOrBreak();
                     return ActionResult.SUCCESS;
                 }
@@ -438,7 +602,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             ItemStack s = this.inventory.getStack(i);
             if (!s.isEmpty()) {
                 net.minecraft.entity.ItemEntity ie = new net.minecraft.entity.ItemEntity(
-                    this.getWorld(), this.getX(), this.getY() + 0.5, this.getZ(), s.copy());
+                        this.getWorld(), this.getX(), this.getY() + 0.5, this.getZ(), s.copy());
                 this.getWorld().spawnEntity(ie);
             }
         }
@@ -446,8 +610,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         net.minecraft.util.math.random.Random rand = this.getWorld().getRandom();
         int scrapCount = 3 + rand.nextInt(3);
         net.minecraft.entity.ItemEntity scrap = new net.minecraft.entity.ItemEntity(
-            this.getWorld(), this.getX(), this.getY() + 0.5, this.getZ(),
-            new ItemStack(net.minecraft.item.Items.IRON_INGOT, scrapCount));
+                this.getWorld(), this.getX(), this.getY() + 0.5, this.getZ(),
+                new ItemStack(net.minecraft.item.Items.IRON_INGOT, scrapCount));
         this.getWorld().spawnEntity(scrap);
         this.discard(); // Eliminar la entidad
     }
@@ -504,7 +668,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     @Nullable
     @Override
     public ScreenHandler createMenu(int syncId, PlayerInventory playerInv, PlayerEntity player) {
-        return new VehicleScreenHandler(syncId, playerInv, this.inventory, this);
+        return new com.gl.vehicles.gui.VehicleScreenHandler(syncId, playerInv, this.inventory, this);
     }
 
     @Override
@@ -533,8 +697,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         if (nbt.contains("IsDestroyed"))
             this.dataTracker.set(IS_DESTROYED, nbt.getBoolean("IsDestroyed"));
 
-        DefaultedList<ItemStack> stacks = DefaultedList.ofSize(this.inventory.size(), ItemStack.EMPTY);
-        Inventories.readNbt(nbt, stacks);
+        net.minecraft.util.collection.DefaultedList<ItemStack> stacks = net.minecraft.util.collection.DefaultedList.ofSize(this.inventory.size(), ItemStack.EMPTY);
+        net.minecraft.inventory.Inventories.readNbt(nbt, stacks);
         for (int i = 0; i < stacks.size(); i++) {
             this.inventory.setStack(i, stacks.get(i));
         }
@@ -551,15 +715,21 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         nbt.putInt("Color", getColor());
         nbt.putFloat("Aero", getAerodynamics());
         nbt.putFloat("Fuel", getFuel());
-        nbt.putFloat("VehicleYaw", this.dataTracker.get(SYNC_YAW));
         nbt.putFloat("ChassisHealth", this.dataTracker.get(CHASSIS_HEALTH));
         nbt.putBoolean("IsDestroyed", this.dataTracker.get(IS_DESTROYED));
 
-        DefaultedList<ItemStack> stacks = DefaultedList.ofSize(this.inventory.size(), ItemStack.EMPTY);
+        net.minecraft.util.collection.DefaultedList<ItemStack> stacks = net.minecraft.util.collection.DefaultedList.ofSize(this.inventory.size(), ItemStack.EMPTY);
         for (int i = 0; i < this.inventory.size(); i++) {
             stacks.set(i, this.inventory.getStack(i));
         }
-        Inventories.writeNbt(nbt, stacks);
+        net.minecraft.inventory.Inventories.writeNbt(nbt, stacks);
+
+        nbt.putFloat("VehicleYaw", this.vehicleYaw);
+    }
+
+    @Override
+    public Packet<ClientPlayPacketListener> createSpawnPacket() {
+        return new EntitySpawnS2CPacket(this);
     }
 
     @Override

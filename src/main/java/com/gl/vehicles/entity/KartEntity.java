@@ -31,12 +31,12 @@ public class KartEntity extends AbstractVehicleEntity {
     @Override
     public void calculateStats() {
         super.calculateStats();
-        // Ajustes agresivos para el Kart
+        // El Kart ya es ligero de base, así que solo le damos un toque extra de nervio
         if (!getEngineStack().isEmpty() && !getWheelStack().isEmpty()) {
-            this.accelerationStat *= 2.5f; // Aceleración explosiva
-            this.maxSpeed *= 2.2f; // Velocidad punta muy alta
-            this.setAerodynamics(0.8f); // Aumentado (más drag) para mayor estabilidad
-            this.grip *= 1.05f; // Casi agarre normal (bajado de 1.2x) para suavizar aún más el giro
+            this.accelerationStat *= 1.3f; // Un poco más de aceleración extra
+            this.maxSpeed *= 1.2f; // Un poco más de punta extra
+            this.setAerodynamics(0.8f); 
+            this.grip *= 1.05f; 
         }
     }
 

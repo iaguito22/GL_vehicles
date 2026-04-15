@@ -5,8 +5,8 @@
 ### 🏎️ Físicas y Conducción
 - [ ] **Inercia Realista:** Ajustar aceleraciones y deceleraciones para que sean mucho más lentas y fluidas (evitar cambios bruscos).
 - [ ] **Suavizado de Movimiento:** Investigar y corregir los "trompicones" (posible interpolación de red o friction).
-- [ ] **Daño por Colisión:** El vehículo recibe daño al chocar contra bloques sólidos a alta velocidad.
-- [ ] **Dashboard en HUD:** Implementar Velocímetro y Cuenta-revoluciones (RPM) visuales.
+- [x] **Daño por Colisión:** El vehículo recibe daño al chocar contra bloques sólidos a alta velocidad.
+- [x] **Dashboard en HUD:** Implementar Velocímetro y Cuenta-revoluciones (RPM) visuales.
 
 ### 🧩 Mecánicas y Componentes
 - [ ] **Restricciones de Slots (Ampliación):** Prohibir meter objetos no válidos en los slots de Accesorios (solo deben aceptar Attachments).
