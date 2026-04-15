@@ -15,13 +15,23 @@ public class EngineItem extends Item {
     private final float fuelConsumption;
     private final float basePitch;
     private final float maxPitch;
+    private final float wearMultiplier;
 
-    public EngineItem(Settings settings, float speedMultiplier, float fuelConsumption, float basePitch, float maxPitch) {
+    public EngineItem(Settings settings, float speedMultiplier, float fuelConsumption, float basePitch, float maxPitch, float wearMultiplier) {
         super(settings.maxCount(1));
         this.speedMultiplier = speedMultiplier;
         this.fuelConsumption = fuelConsumption;
         this.basePitch = basePitch;
         this.maxPitch = maxPitch;
+        this.wearMultiplier = wearMultiplier;
+    }
+
+    public EngineItem(Settings settings, float speedMultiplier, float fuelConsumption, float basePitch, float maxPitch) {
+        this(settings, speedMultiplier, fuelConsumption, basePitch, maxPitch, 1.0f);
+    }
+
+    public float getWearMultiplier() {
+        return wearMultiplier;
     }
 
     public float getBasePitch() {

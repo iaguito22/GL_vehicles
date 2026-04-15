@@ -10,7 +10,7 @@ public class ModItems {
     // Motores (Settings, Speed, Fuel, BasePitch, MaxPitch)
     public static final Item CHAINSAW_ENGINE = registerItem("chainsaw_engine", new EngineItem(new Item.Settings(), 0.5f, 0.2f, 0.8f, 1.8f));
     public static final Item ENGINE_1L = registerItem("engine_1l", new EngineItem(new Item.Settings(), 0.8f, 0.5f, 0.6f, 1.2f));
-    public static final Item ENGINE_1_9TDI = registerItem("engine_1_9tdi", new EngineItem(new Item.Settings(), 1.2f, 0.7f, 0.4f, 1.0f));
+    public static final Item ENGINE_1_9TDI = registerItem("engine_1_9tdi", new EngineItem(new Item.Settings(), 1.0f, 0.7f, 0.4f, 1.0f, 0.1f)); 
     public static final Item ENGINE_V6 = registerItem("engine_v6", new EngineItem(new Item.Settings(), 1.5f, 1.2f, 0.5f, 1.4f));
     public static final Item ENGINE_V12 = registerItem("engine_v12", new EngineItem(new Item.Settings(), 2.5f, 2.5f, 0.7f, 2.0f));
     public static final Item ELECTRIC_MOTOR = registerItem("electric_motor", new EngineItem(new Item.Settings(), 1.4f, 0.1f, 1.0f, 1.8f));

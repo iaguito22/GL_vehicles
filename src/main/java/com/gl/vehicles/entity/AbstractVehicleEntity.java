@@ -53,6 +53,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     public static final TrackedData<Integer> OCCUPIED_SLOTS = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
     public static final TrackedData<Float> ACCEL_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
     public static final TrackedData<Float> MAX_SPEED_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> FORWARD_SPEED_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
 
     public static final float MAX_CHASSIS_HEALTH = 300.0f;
 
@@ -100,6 +101,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         this.dataTracker.startTracking(OCCUPIED_SLOTS, 0);
         this.dataTracker.startTracking(ACCEL_SYNC, 0.0f);
         this.dataTracker.startTracking(MAX_SPEED_SYNC, 0.0f);
+        this.dataTracker.startTracking(FORWARD_SPEED_SYNC, 0.0f);
     }
 
     // BAJAR AL JUGADOR (Estaba muy alto)
@@ -292,6 +294,10 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         if (this.getWorld().isClient) {
             this.accelerationStat = syncedAccel;
             this.maxSpeed = syncedMax;
+            if (!isLocalPlayerDriving()) {
+                // Suavizado del cambio de velocidad sincronizada para quitar el micro-stutter
+                this.forwardSpeed = MathHelper.lerp(0.3f, (float)this.forwardSpeed, this.dataTracker.get(FORWARD_SPEED_SYNC));
+            }
         }
 
         // --- MOVIMIENTO Y FÍSICAS ---
@@ -307,21 +313,25 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
                 handlePhysics();
                 if (Math.abs(forwardSpeed) > 0.01) {
                     float fuelUsage = 0.005f;
+                    float wearAmount = 0.00001f;
                     ItemStack engineStack = getEngineStack();
                     if (engineStack.getItem() instanceof com.gl.vehicles.item.EngineItem engine) {
                         fuelUsage *= engine.getFuelConsumption();
+                        wearAmount *= engine.getWearMultiplier();
                     }
                     setFuel(getFuel() - fuelUsage);
-                    applyWear(getEngineStack(), 0.00001f);
+                    applyWear(getEngineStack(), wearAmount);
                     applyWear(getWheelStack(), 0.00002f);
                 }
             } else {
-                if (forwardSpeed != 0) {
+                // Si no hay pasajeros, aplicar rozamiento natural (coast)
+                if (Math.abs(forwardSpeed) > 0.01) {
+                    applyFriction(0.94f); // Bajado de 0.98 a 0.94 para frenar antes
+                } else {
                     forwardSpeed = 0;
-                    applyFriction(0.85f);
                 }
             }
-
+            this.dataTracker.set(FORWARD_SPEED_SYNC, (float)this.forwardSpeed);
             this.move(MovementType.SELF, this.getVelocity());
 
             if (!this.isOnGround()) {
@@ -387,9 +397,9 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
 
         // --- RANGOS DE CAMBIO (Estirados con Clipping) ---
         float m1Max = 0.28f;
-        float m2Max = 0.55f;
-        float m3Max = 0.78f;
-        float m4Max = 0.92f;
+        float m2Max = 0.52f;
+        float m3Max = 0.65f; // Acortada la 3ª para que la 4ª sea más larga
+        float m4Max = 0.78f; // Quinta marcha desde el 78% (Manteniendo la 5ª bien)
 
         // Umbral extra para que la marcha cambie "tarde" y haga clipping
         float clipThreshold = 0.04f;
