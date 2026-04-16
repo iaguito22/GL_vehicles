@@ -52,12 +52,20 @@ public class EngineItem extends Item {
 
     @Override
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
-        tooltip.add(Text.literal("Power: ").append(Text.literal(String.valueOf(speedMultiplier)).formatted(Formatting.GOLD)));
-        tooltip.add(Text.literal("Fuel Consumption: ").append(Text.literal(String.valueOf(fuelConsumption)).formatted(Formatting.YELLOW)));
+        tooltip.add(Text.translatable("item.gl_vehicles.tooltip.type", Text.translatable("item.gl_vehicles.type.engine")));
         
+        int displayPower = (int)(speedMultiplier * 110);
+        tooltip.add(Text.translatable("item.gl_vehicles.tooltip.stat", String.valueOf(displayPower), Text.translatable("item.gl_vehicles.stat.power")));
+        
+        if (this == ModItems.ENGINE_1_9TDI) {
+            tooltip.add(Text.translatable("item.gl_vehicles.tooltip.lore_engine_tdi"));
+        } else if (this == ModItems.ENGINE_V6 || this == ModItems.ENGINE_V12) {
+            tooltip.add(Text.translatable("item.gl_vehicles.tooltip.lore_engine_sport"));
+        }
+
         if (stack.hasNbt() && stack.getNbt().contains("Wear")) {
             float wear = stack.getNbt().getFloat("Wear") * 100;
-            tooltip.add(Text.literal("Wear: ").append(Text.literal(String.format("%.1f%%", wear)).formatted(Formatting.RED)));
+            tooltip.add(Text.literal("Desgaste: ").append(Text.literal(String.format("%.1f%%", wear)).formatted(Formatting.RED)));
         }
         super.appendTooltip(stack, world, tooltip, context);
     }

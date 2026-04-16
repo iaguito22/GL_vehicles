@@ -48,23 +48,27 @@ public class GasPumpBlock extends Block implements BlockEntityProvider {
             if (!world.isClient) {
                 float currentFuelInCan = can.getFuel(stack);
                 float currentFuelInPump = pump.getFuel();
-
-                // Caso A: El bidón tiene fuel y el surtidor tiene espacio -> Llenar surtidor
-                if (currentFuelInCan > 0 && currentFuelInPump < pump.getMaxCapacity()) {
-                    float amountToTransfer = Math.min(currentFuelInCan, 20.0f);
-                    pump.addFuel(amountToTransfer);
-                    can.setFuel(stack, currentFuelInCan - amountToTransfer);
-                    player.sendMessage(Text.literal("⬇️ Llenando Surtidor... (" + String.format("%.0f", pump.getFuel()) + "L)").formatted(Formatting.YELLOW), true);
-                } 
-                // Caso B: El surtidor tiene fuel y el bidón tiene espacio -> Llenar bidón
-                else if (currentFuelInPump > 0 && currentFuelInCan < can.getCapacity()) {
-                    float amountToTransfer = Math.min(currentFuelInPump, 20.0f);
-                    pump.addFuel(-amountToTransfer);
-                    can.setFuel(stack, currentFuelInCan + amountToTransfer);
-                    player.sendMessage(Text.literal("⬆️ Llenando Bidón... (" + String.format("%.0f", can.getFuel(stack)) + "L)").formatted(Formatting.GREEN), true);
+                
+                if (player.isSneaking()) { // Surtidor -> Bidón
+                    if (currentFuelInPump > 0 && currentFuelInCan < 50.0f) {
+                        float amount = Math.min(currentFuelInPump, 50.0f - currentFuelInCan);
+                        pump.addFuel(-amount);
+                        can.setFuel(stack, currentFuelInCan + amount);
+                        player.sendMessage(Text.literal("⬆️ Rellenando Bidón (+50L)").formatted(Formatting.GREEN), true);
+                        world.playSound(null, pos, net.minecraft.sound.SoundEvents.ITEM_BUCKET_FILL, net.minecraft.sound.SoundCategory.BLOCKS, 1.0f, 1.0f);
+                    }
+                } else { // Bidón -> Surtidor
+                    if (currentFuelInCan > 0 && currentFuelInPump < pump.getMaxCapacity()) {
+                        float amount = Math.min(currentFuelInCan, 50.0f);
+                        pump.addFuel(amount);
+                        can.setFuel(stack, currentFuelInCan - amount);
+                        player.sendMessage(Text.literal("⬇️ Llenando Depósito (+50L)").formatted(Formatting.YELLOW), true);
+                        world.playSound(null, pos, net.minecraft.sound.SoundEvents.ITEM_BUCKET_EMPTY, net.minecraft.sound.SoundCategory.BLOCKS, 1.0f, 1.0f);
+                    }
                 }
+                return ActionResult.SUCCESS;
             }
-            return ActionResult.SUCCESS;
+            return ActionResult.CONSUME;
         }
 
         // Rellenar un Vehículo cercano (Radio 4 bloques)

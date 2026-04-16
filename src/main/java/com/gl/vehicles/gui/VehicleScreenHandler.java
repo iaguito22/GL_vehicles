@@ -29,46 +29,41 @@ public class VehicleScreenHandler extends ScreenHandler {
         this.vehicle = vehicle;
         inventory.onOpen(playerInventory.player);
 
-        int slotCount = Math.min(inventory.size(), 4);
-        for (int i = 0; i < slotCount; i++) {
-            final int slotIndex = i;
-            this.addSlot(new Slot(inventory, i, 8, 18 + (i * 18)) {
-                @Override
-                public boolean canInsert(ItemStack stack) {
-                    if (vehicle instanceof com.gl.vehicles.entity.KartEntity) {
-                        if (slotIndex == 0) return stack.getItem() instanceof com.gl.vehicles.item.EngineItem;
-                        if (slotIndex == 1) return stack.getItem() instanceof com.gl.vehicles.item.WheelItem;
-                    } else if (vehicle instanceof com.gl.vehicles.entity.TractorEntity) {
+        if (vehicle instanceof com.gl.vehicles.entity.KartEntity) {
+            // Kart: Solo 2 slots (Motor, Ruedas)
+            this.addSlot(new Slot(inventory, 0, 8, 18) {
+                @Override public boolean canInsert(ItemStack stack) { return stack.getItem() instanceof com.gl.vehicles.item.EngineItem; }
+            });
+            this.addSlot(new Slot(inventory, 1, 8, 36) {
+                @Override public boolean canInsert(ItemStack stack) { return stack.getItem() instanceof com.gl.vehicles.item.WheelItem; }
+            });
+        } else if (vehicle instanceof com.gl.vehicles.entity.TractorEntity) {
+            // Tractor: 4 slots (Frontal, Motor, Ruedas, Trasero)
+            for (int i = 0; i < 4; i++) {
+                final int slotIndex = i;
+                this.addSlot(new Slot(inventory, i, 8, 18 + (i * 18)) {
+                    @Override
+                    public boolean canInsert(ItemStack stack) {
                         if (slotIndex == 1) return stack.getItem() instanceof com.gl.vehicles.item.EngineItem;
                         if (slotIndex == 2) return stack.getItem() instanceof com.gl.vehicles.item.WheelItem;
+                        return super.canInsert(stack);
                     }
-                    return super.canInsert(stack);
-                }
-            });
-        }
+                });
+            }
 
-        // Slots de inventario del remolque/sembradora (27 slots)
-        // Empiezan justo debajo de los slots de componentes (18*4 + 18 = 90)
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 9; ++j) {
-                int slotIndex = 4 + j + i * 9;
-                if (slotIndex < inventory.size()) {
-                    this.addSlot(new Slot(inventory, slotIndex, 8 + j * 18, 90 + i * 18) {
-                        @Override
-                        public boolean isEnabled() {
-                            if (vehicle instanceof com.gl.vehicles.entity.TractorEntity) {
-                                net.minecraft.item.Item item = inventory.getStack(3).getItem();
-                                return item == com.gl.vehicles.item.ModItems.TRAILER || item == com.gl.vehicles.item.ModItems.SEEDER;
-                            }
-                            return false;
-                        }
-                    });
+            // Slots de inventario del remolque (Solo para tractores)
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 9; ++j) {
+                    int slotIndex = 4 + j + i * 9;
+                    if (slotIndex < inventory.size()) {
+                        this.addSlot(new Slot(inventory, slotIndex, 8 + j * 18, 90 + i * 18));
+                    }
                 }
             }
         }
 
         // Inventario Jugador
-        int startY = 157; // Ajustado para que encaje perfectamente con el v=126 de la textura (header 143 + gap de 14px)
+        int startY = (vehicle instanceof com.gl.vehicles.entity.KartEntity) ? 103 : 157; 
         for (int i = 0; i < 3; ++i) {
             for (int j = 0; j < 9; ++j) {
                 this.addSlot(new Slot(playerInventory, j + i * 9 + 9, 8 + j * 18, startY + i * 18));

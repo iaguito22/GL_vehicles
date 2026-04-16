@@ -84,7 +84,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     // --- SISTEMA DE DAÑO ---
     protected Vec3d prevVelocityForCollision = Vec3d.ZERO;
     protected int smokeTimer = 0;
-    protected int destroyedRepairCooldown = 0; // Cooldown de la llave inglesa al reparar
+    protected int wrenchTimer = 0;
+    protected java.util.UUID lastWrenchPlayer = null;
 
     public AbstractVehicleEntity(EntityType<? extends AbstractVehicleEntity> type, World world, int inventorySize) {
         super(type, world);
@@ -243,6 +244,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
 
     @Override
     public void tick() {
+        if (!this.getWorld().isClient && wrenchTimer > 0) wrenchTimer--;
         if (this.getWorld().isClient) {
             this.vehicleYaw = this.dataTracker.get(SYNC_YAW);
             this.setYaw(this.vehicleYaw);
@@ -406,6 +408,23 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         Entity driver = this.getFirstPassenger();
         return driver instanceof PlayerEntity
                 && driver.getUuid().equals(net.minecraft.client.MinecraftClient.getInstance().player.getUuid());
+    }
+
+    @Override
+    public boolean damage(net.minecraft.entity.damage.DamageSource source, float amount) {
+        if (!this.getWorld().isClient && source.getAttacker() instanceof PlayerEntity player) {
+            ItemStack held = player.getMainHandStack();
+            if (held.isOf(ModItems.WRENCH)) {
+                if (wrenchTimer > 0 && lastWrenchPlayer != null && lastWrenchPlayer.equals(player.getUuid())) {
+                    repairOrBreak(); return true;
+                } else {
+                    wrenchTimer = 40; lastWrenchPlayer = player.getUuid();
+                    player.sendMessage(Text.literal("⚠️ Click IZQUIERDO de nuevo para desguazar").formatted(Formatting.YELLOW), true);
+                    return true;
+                }
+            }
+        }
+        return super.damage(source, amount);
     }
 
     private void sendDriverAlerts() {
@@ -686,6 +705,15 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             if (passenger instanceof PlayerEntity player) {
                 // Opcional: podrías forzar el yaw del jugador aquí si quisieras
             }
+        }
+    }
+
+    @Override
+    protected void removePassenger(Entity passenger) {
+        super.removePassenger(passenger);
+        if (!this.getWorld().isClient && passenger instanceof ServerPlayerEntity player) {
+            // Forzar actualización de posición del jugador al bajar para evitar teleport
+            player.networkHandler.requestTeleport(this.getX(), this.getY(), this.getZ(), player.getYaw(), player.getPitch());
         }
     }
 

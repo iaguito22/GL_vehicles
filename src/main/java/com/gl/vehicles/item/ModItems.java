@@ -22,7 +22,7 @@ public class ModItems {
     public static final Item SPORT_WHEELS = registerItem("sport_wheels", new WheelItem(new Item.Settings(), 3.0f));
 
     // Combustibles y Otros
-    public static final Item FUEL_CAN = registerItem("fuel_can", new FuelCanItem(new Item.Settings().maxCount(1), 100.0f));
+    public static final Item FUEL_CAN = registerItem("fuel_can", new FuelCanItem(new Item.Settings().maxCount(1), 50.0f));
 
     // Vehículos
     public static final Item TRACTOR = registerItem("tractor", new VehicleSpawnItem(com.gl.vehicles.entity.ModEntities.TRACTOR, new Item.Settings().maxCount(1)));
