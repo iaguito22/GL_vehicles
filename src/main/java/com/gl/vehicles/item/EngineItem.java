@@ -15,19 +15,31 @@ public class EngineItem extends Item {
     private final float fuelConsumption;
     private final float basePitch;
     private final float maxPitch;
+    private final float baseVolume;
     private final float wearMultiplier;
+    private final net.minecraft.sound.SoundEvent engineSound;
 
-    public EngineItem(Settings settings, float speedMultiplier, float fuelConsumption, float basePitch, float maxPitch, float wearMultiplier) {
+    public EngineItem(Settings settings, float speedMultiplier, float fuelConsumption, float basePitch, float maxPitch, float baseVolume, float wearMultiplier, net.minecraft.sound.SoundEvent engineSound) {
         super(settings.maxCount(1));
         this.speedMultiplier = speedMultiplier;
         this.fuelConsumption = fuelConsumption;
         this.basePitch = basePitch;
         this.maxPitch = maxPitch;
+        this.baseVolume = baseVolume;
         this.wearMultiplier = wearMultiplier;
+        this.engineSound = engineSound;
     }
 
-    public EngineItem(Settings settings, float speedMultiplier, float fuelConsumption, float basePitch, float maxPitch) {
-        this(settings, speedMultiplier, fuelConsumption, basePitch, maxPitch, 1.0f);
+    public EngineItem(Settings settings, float speedMultiplier, float fuelConsumption, float basePitch, float maxPitch, float baseVolume, net.minecraft.sound.SoundEvent engineSound) {
+        this(settings, speedMultiplier, fuelConsumption, basePitch, maxPitch, baseVolume, 1.0f, engineSound);
+    }
+
+    public float getBaseVolume() {
+        return baseVolume;
+    }
+
+    public net.minecraft.sound.SoundEvent getEngineSound() {
+        return engineSound;
     }
 
     public float getWearMultiplier() {

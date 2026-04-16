@@ -60,11 +60,13 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             TrackedDataHandlerRegistry.BOOLEAN);
     public static final TrackedData<Integer> OCCUPIED_SLOTS = DataTracker.registerData(AbstractVehicleEntity.class,
             TrackedDataHandlerRegistry.INTEGER);
-    public static final TrackedData<Float> ACCEL_SYNC = DataTracker.registerData(AbstractVehicleEntity.class,
-            TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> ACCEL_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Integer> ENGINE_SOUND_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
     public static final TrackedData<Float> MAX_SPEED_SYNC = DataTracker.registerData(AbstractVehicleEntity.class,
             TrackedDataHandlerRegistry.FLOAT);
     public static final TrackedData<Float> FORWARD_SPEED_SYNC = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> GRIP_SYNC = DataTracker.registerData(AbstractVehicleEntity.class,
             TrackedDataHandlerRegistry.FLOAT);
 
     public static final float MAX_CHASSIS_HEALTH = 300.0f;
@@ -122,6 +124,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         this.dataTracker.startTracking(ACCEL_SYNC, 0.0f);
         this.dataTracker.startTracking(MAX_SPEED_SYNC, 0.0f);
         this.dataTracker.startTracking(FORWARD_SPEED_SYNC, 0.0f);
+        this.dataTracker.startTracking(GRIP_SYNC, 1.0f);
+        this.dataTracker.startTracking(ENGINE_SOUND_SYNC, 0); // 0 = Sin sonido
     }
 
     // BAJAR AL JUGADOR (Estaba muy alto)
@@ -167,7 +171,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     }
 
     public float getGrip() {
-        return this.grip;
+        return this.dataTracker.get(GRIP_SYNC);
     }
 
     public float getFuel() {
@@ -176,6 +180,48 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
 
     public void setFuel(float fuel) {
         this.dataTracker.set(FUEL, Math.max(0, Math.min(100.0f, fuel)));
+    }
+
+    public EngineItem getEngineItem() {
+        ItemStack stack = getEngineStack();
+        if (!stack.isEmpty() && stack.getItem() instanceof EngineItem engine) {
+            return engine;
+        }
+        return null;
+    }
+
+    public float getEngineBaseVolume() {
+        EngineItem engine = getEngineItem();
+        if (engine != null) return engine.getBaseVolume();
+        // Fallback para otros clientes (usar IDs)
+        int id = this.dataTracker.get(ENGINE_SOUND_SYNC);
+        if (id == 4) return 0.5f; // Chainsaw fuerte
+        return 0.7f; // Default
+    }
+
+    public float getEngineBasePitch() {
+        EngineItem engine = getEngineItem();
+        if (engine != null) return engine.getBasePitch();
+        return 0.65f;
+    }
+
+    public float getEngineMaxPitch() {
+        EngineItem engine = getEngineItem();
+        if (engine != null) return engine.getMaxPitch();
+        return 1.5f;
+    }
+
+    public net.minecraft.sound.SoundEvent getEngineSound() {
+        int id = this.dataTracker.get(ENGINE_SOUND_SYNC);
+        switch (id) {
+            case 1: return com.gl.vehicles.sound.ModSounds.TDI_SOUND;
+            case 2: return com.gl.vehicles.sound.ModSounds.V12_SOUND;
+            case 3: return com.gl.vehicles.sound.ModSounds.V6_SOUND;
+            case 4: return com.gl.vehicles.sound.ModSounds.CHAINSAW_SOUND;
+            case 5: return com.gl.vehicles.sound.ModSounds.ENGINE_1L_SOUND;
+            case 6: return com.gl.vehicles.sound.ModSounds.ELECTRIC_WHINE;
+            default: return null;
+        }
     }
 
     public void calculateStats() {
@@ -225,7 +271,21 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         if (!this.getWorld().isClient) {
             this.dataTracker.set(ACCEL_SYNC, this.accelerationStat);
             this.dataTracker.set(MAX_SPEED_SYNC, this.maxSpeed);
+            this.dataTracker.set(GRIP_SYNC, this.grip);
             this.dataTracker.set(GEAR, this.currentGear);
+
+            // Sincronización del sonido para que el cliente lo sepa sin abrir el inventario
+            int soundId = 0;
+            if (hasEngine && getEngineStack().getItem() instanceof EngineItem engine) {
+                net.minecraft.sound.SoundEvent sound = engine.getEngineSound();
+                if (sound == com.gl.vehicles.sound.ModSounds.TDI_SOUND) soundId = 1;
+                else if (sound == com.gl.vehicles.sound.ModSounds.V12_SOUND) soundId = 2;
+                else if (sound == com.gl.vehicles.sound.ModSounds.V6_SOUND) soundId = 3;
+                else if (sound == com.gl.vehicles.sound.ModSounds.CHAINSAW_SOUND) soundId = 4;
+                else if (sound == com.gl.vehicles.sound.ModSounds.ENGINE_1L_SOUND) soundId = 5;
+                else if (sound == com.gl.vehicles.sound.ModSounds.ELECTRIC_WHINE) soundId = 6;
+            }
+            this.dataTracker.set(ENGINE_SOUND_SYNC, soundId);
         }
     }
 
@@ -475,14 +535,18 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         double absSpeed = Math.abs(forwardSpeed);
         double speedPercent = absSpeed / safeMaxSpeed;
 
-        // --- RANGOS DE CAMBIO (Estirados con Clipping) ---
-        float m1Max = 0.28f;
-        float m2Max = 0.52f;
-        float m3Max = 0.65f; // Acortada la 3ª para que la 4ª sea más larga
-        float m4Max = 0.78f; // Quinta marcha desde el 78% (Manteniendo la 5ª bien)
+        // --- RANGOS DE CAMBIO (Dinámicos por motor) ---
+        float stretchFactor = 1.0f;
+        if (this.maxSpeed > 2.2f) stretchFactor = 1.30f; // V12: Ultra largo
+        else if (this.maxSpeed > 1.2f) stretchFactor = 1.15f; // V6, TDI, 1L: Más largo
+
+        float m1Max = 0.28f * stretchFactor;
+        float m2Max = 0.52f * stretchFactor;
+        float m3Max = 0.65f * stretchFactor;
+        float m4Max = 0.76f * stretchFactor; // Bajado un pelín para que el V12 entre en 5ª
 
         // Umbral extra para que la marcha cambie "tarde" y haga clipping
-        float clipThreshold = 0.04f;
+        float clipThreshold = 0.05f; 
 
         // --- LÓGICA DE MARCHAS SECUENCIAL Y DIRECCIÓN ---
         int targetGear = currentGear;
@@ -512,14 +576,19 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
                 }
 
                 // Reducción secuencial (Ajustada para que no caiga de vueltas al reducir)
-                if (currentGear == 5 && speedPercent < m4Max - 0.10)
+                if (currentGear == 5 && speedPercent < m4Max - 0.12)
                     targetGear = 4;
-                else if (currentGear == 4 && speedPercent < m3Max - 0.10)
+                else if (currentGear == 4 && speedPercent < m3Max - 0.12)
                     targetGear = 3;
-                else if (currentGear == 3 && speedPercent < m2Max - 0.10)
+                else if (currentGear == 3 && speedPercent < m2Max - 0.12)
                     targetGear = 2;
-                else if (currentGear == 2 && speedPercent < m1Max - 0.08)
+                else if (currentGear == 2 && speedPercent < m1Max - 0.10)
                     targetGear = 1;
+
+                // Spike de RPM al bajar de marcha
+                if (targetGear < currentGear) {
+                    this.rpm = 0.90f; 
+                }
             }
         }
 
@@ -556,14 +625,14 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
                     targetSpeed = maxSpeed;
                 } else if (inputBackward) {
                     targetSpeed = 0;
-                    lerpFactor = accelerationStat * 1.5f;
+                    lerpFactor = 0.045f; // Frenada fija del TDI (Contundente)
                 }
             } else if (currentGear == -1) {
                 if (inputBackward) {
                     targetSpeed = -maxSpeed * 0.4f;
                 } else if (inputForward) {
                     targetSpeed = 0;
-                    lerpFactor = accelerationStat * 1.5f;
+                    lerpFactor = 0.045f; // Frenada fija del TDI
                 }
             }
 
@@ -589,6 +658,16 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
 
                 targetRpm = (float) ((speedPercent - minS) / (maxS - minS));
                 targetRpm = MathHelper.clamp(targetRpm, 0.0f, 1.2f);
+
+                // --- LIMITADOR "TATATATATA" (Corte de inyección rítmico) ---
+                if (targetRpm >= 0.98f) {
+                    // Si llegamos arriba, hacemos que "caiga" bruscamente y vuelva a subir
+                    if (this.age % 2 == 0) {
+                        targetRpm = 1.02f;
+                    } else {
+                        targetRpm = 0.90f; // El bajón que hace el sonido rítmico
+                    }
+                }
 
                 // --- LIMITADOR SUAVE (Sin frenazos bruscos) ---
                 if (targetRpm > 1.0f && currentGear < 5 && currentGear != -1) {
@@ -772,13 +851,13 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     }
 
     @Override
-    protected void removePassenger(Entity passenger) {
-        super.removePassenger(passenger);
-        if (!this.getWorld().isClient) {
-            // Marcamos el vehículo como sucio para forzar una sincronización de posición final
-            // y evitar el "snapback" o teletransporte del jugador y el coche al bajar.
+    public void removePassenger(Entity passenger) {
+        if (passenger != null && passenger.getVehicle() == this) {
+            // Evitar teletransporte agresivo: simplemente dejamos que el sistema de Minecraft lo maneje
+            // pero forzamos que el vehículo NO intente mover al jugador manualmente
+            super.removePassenger(passenger);
+            if (this.getWorld().isClient) return;
             this.velocityDirty = true;
-            this.velocityModified = true;
         }
     }
 

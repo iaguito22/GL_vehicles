@@ -22,6 +22,7 @@ import net.minecraft.inventory.Inventory;
 
 public class GLVehiclesClient implements ClientModInitializer {
     public static final EntityModelLayer TRACTOR_MODEL_LAYER = new EntityModelLayer(new Identifier(GLVehicles.MOD_ID, "tractor"), "main");
+    private static final java.util.Map<java.util.UUID, com.gl.vehicles.client.sound.VehicleEngineSoundInstance> ACTIVE_SOUNDS = new java.util.HashMap<>();
 
     @Override
     public void onInitializeClient() {
@@ -124,25 +125,51 @@ public class GLVehiclesClient implements ClientModInitializer {
             }
         });
 
-        // WASD Input Prediction
+        // WASD Input Prediction & Sound Management
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.player != null && client.player.getVehicle() instanceof AbstractVehicleEntity vehicle) {
-                boolean f = client.options.forwardKey.isPressed();
-                boolean b = client.options.backKey.isPressed();
-                boolean l = client.options.leftKey.isPressed();
-                boolean r = client.options.rightKey.isPressed();
-                boolean j = client.options.jumpKey.isPressed();
-                
-                // Aplicar localmente para que handlePhysics() en el cliente tenga los inputs actualizados
-                vehicle.setInputs(f, b, l, r, j);
-                
-                PacketByteBuf buf = PacketByteBufs.create();
-                buf.writeBoolean(f);
-                buf.writeBoolean(b);
-                buf.writeBoolean(l);
-                buf.writeBoolean(r);
-                buf.writeBoolean(j);
-                ClientPlayNetworking.send(GLVehicles.INPUT_PACKET_ID, buf);
+            if (client.world != null) {
+                // Gestión de sonidos del motor para vehículos cercanos
+                java.util.Set<java.util.UUID> currentVehicles = new java.util.HashSet<>();
+                for (net.minecraft.entity.Entity entity : client.world.getEntities()) {
+                    if (entity instanceof AbstractVehicleEntity vehicle) {
+                        currentVehicles.add(vehicle.getUuid());
+                        
+                        // El sonido empieza SIEMPRE que no esté en P (Gear 0) y tenga gasolina
+                        boolean shouldStartSound = vehicle.isAlive() && vehicle.getFuel() > 0 && !vehicle.isDestroyed() && vehicle.getGear() != 0;
+                        
+                        if (shouldStartSound) {
+                            if (!ACTIVE_SOUNDS.containsKey(vehicle.getUuid()) || ACTIVE_SOUNDS.get(vehicle.getUuid()).isDone()) {
+                                net.minecraft.sound.SoundEvent sound = vehicle.getEngineSound();
+                                if (sound != null) {
+                                    var soundInstance = new com.gl.vehicles.client.sound.VehicleEngineSoundInstance(vehicle, sound);
+                                    ACTIVE_SOUNDS.put(vehicle.getUuid(), soundInstance);
+                                    client.getSoundManager().play(soundInstance);
+                                }
+                            }
+                        }
+                    }
+                }
+                // Limpiar sonidos de vehículos que ya no están en el mundo
+                ACTIVE_SOUNDS.keySet().retainAll(currentVehicles);
+
+                if (client.player != null && client.player.getVehicle() instanceof AbstractVehicleEntity vehicle) {
+                    boolean f = client.options.forwardKey.isPressed();
+                    boolean b = client.options.backKey.isPressed();
+                    boolean l = client.options.leftKey.isPressed();
+                    boolean r = client.options.rightKey.isPressed();
+                    boolean j = client.options.jumpKey.isPressed();
+                    
+                    // Aplicar localmente para que handlePhysics() en el cliente tenga los inputs actualizados
+                    vehicle.setInputs(f, b, l, r, j);
+                    
+                    PacketByteBuf buf = PacketByteBufs.create();
+                    buf.writeBoolean(f);
+                    buf.writeBoolean(b);
+                    buf.writeBoolean(l);
+                    buf.writeBoolean(r);
+                    buf.writeBoolean(j);
+                    ClientPlayNetworking.send(GLVehicles.INPUT_PACKET_ID, buf);
+                }
             }
         });
     }

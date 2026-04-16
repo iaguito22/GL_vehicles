@@ -10,6 +10,8 @@ public class ModSounds {
     public static final SoundEvent CHAINSAW_SOUND = registerSound("chainsaw_idle");
     public static final SoundEvent TDI_SOUND = registerSound("tdi_idle");
     public static final SoundEvent V12_SOUND = registerSound("v12_idle");
+    public static final SoundEvent V6_SOUND = registerSound("v6_idle");
+    public static final SoundEvent ENGINE_1L_SOUND = registerSound("engine_1l_idle");
     public static final SoundEvent ELECTRIC_WHINE = registerSound("electric_whine");
 
     private static SoundEvent registerSound(String name) {

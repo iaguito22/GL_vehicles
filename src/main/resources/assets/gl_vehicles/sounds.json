@@ -5,7 +5,7 @@
     "sounds": [
       {
         "name": "gl_vehicles:chainsaw_idle",
-        "stream": true
+        "stream": false
       }
     ]
   },
@@ -15,7 +15,7 @@
     "sounds": [
       {
         "name": "gl_vehicles:tdi_idle",
-        "stream": true
+        "stream": false
       }
     ]
   },
@@ -25,6 +25,26 @@
     "sounds": [
       {
         "name": "gl_vehicles:v12_idle",
+        "stream": false
+      }
+    ]
+  },
+  "v6_idle": {
+    "category": "neutral",
+    "subtitle": "subtitles.gl_vehicles.v6",
+    "sounds": [
+      {
+        "name": "gl_vehicles:v6_idle",
+        "stream": false
+      }
+    ]
+  },
+  "engine_1l_idle": {
+    "category": "neutral",
+    "subtitle": "subtitles.gl_vehicles.1l",
+    "sounds": [
+      {
+        "name": "gl_vehicles:engine_1l",
         "stream": true
       }
     ]
