@@ -13,10 +13,11 @@ public class VehicleInputC2SPacket {
         boolean b = buf.readBoolean();
         boolean l = buf.readBoolean();
         boolean r = buf.readBoolean();
+        boolean j = buf.readBoolean();
 
         server.execute(() -> {
             if (player.getVehicle() instanceof AbstractVehicleEntity vehicle) {
-                vehicle.setInputs(f, b, l, r);
+                vehicle.setInputs(f, b, l, r, j);
             }
         });
     }

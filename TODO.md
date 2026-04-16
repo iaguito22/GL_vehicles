@@ -6,16 +6,17 @@
 - [ ] **Restricciones de Slots (Ampliación):** Prohibir meter objetos no válidos en los slots de Accesorios (solo deben aceptar Attachments).
 - [ ] **Visualización de Estadísticas:** Ver (Grip, Aceleración, Peso, etc.) en la GUI o al mirar el vehículo.
 - [ ] **Sistema de Pintura:** Click derecho con tintes para cambiar el color del chasis.
+- [ ] **Descripciones y Lore:** Añadir descripciones detalladas y *tooltips* informativos a todos los ítems (motores, ruedas, herramientas) para que el jugador sepa sus estadísticas antes de instalarlos.
 - [ ] **Alertas de Combustible:** Añadir mensaje en actionbar mientras se llena el depósito en la Gas Pump.
 - [ ] **Luces:** Huesos funcionales para faros que iluminen de noche (Emissive Textures).
 - [ ] **Sonidos Custom:** Reemplazar los *placeholders* musicales por sonidos reales de motor `.ogg`.
 
-### 🏗️ Progresión y Mundo
-- [ ] **Mesa de Trabajo Especial:** 
+### 🏗️ Progresión y Mundo (PRÓXIMAMENTE 🚩)
+- [ ] **Mesa de Trabajo Especial (Vehicle Workbench):** 
     - [x] Registro de bloque y ScreenHandler (GUI base lista).
-    - [ ] **Recetas de Fabricación:** Implementar la lógica de crafteo real (materiales -> ítems).
-    - [ ] **Visuales:** Modelo y textura de la mesa.
-- [ ] **Crafteos:** Definir recetas balanceadas para todos los componentes.
+    - [ ] **Lógica de Crafteo Final:** Implementar la fabricación real de piezas y vehículos dentro de la mesa.
+    - [ ] **Definición de Recetas:** Crear los crafteos balanceados para todos los motores, ruedas y chasis.
+    - [ ] **Visuales:** Modelo 3D y textura final de la mesa.
 
 ### 🚜 Accesorios (Attachments)
 - [ ] **Harvester, Trailer, Seeder:**

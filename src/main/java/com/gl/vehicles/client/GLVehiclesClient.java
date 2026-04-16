@@ -131,15 +131,17 @@ public class GLVehiclesClient implements ClientModInitializer {
                 boolean b = client.options.backKey.isPressed();
                 boolean l = client.options.leftKey.isPressed();
                 boolean r = client.options.rightKey.isPressed();
+                boolean j = client.options.jumpKey.isPressed();
                 
                 // Aplicar localmente para que handlePhysics() en el cliente tenga los inputs actualizados
-                vehicle.setInputs(f, b, l, r);
+                vehicle.setInputs(f, b, l, r, j);
                 
                 PacketByteBuf buf = PacketByteBufs.create();
                 buf.writeBoolean(f);
                 buf.writeBoolean(b);
                 buf.writeBoolean(l);
                 buf.writeBoolean(r);
+                buf.writeBoolean(j);
                 ClientPlayNetworking.send(GLVehicles.INPUT_PACKET_ID, buf);
             }
         });

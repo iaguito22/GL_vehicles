@@ -59,7 +59,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
 
     protected final SimpleInventory inventory;
     protected float steering = 0.0f;
-    protected boolean inputForward, inputBackward, inputLeft, inputRight;
+    protected boolean inputForward, inputBackward, inputLeft, inputRight, inputJump;
 
     protected double forwardSpeed = 0.0;
     protected float vehicleYaw = 0.0f;
@@ -67,6 +67,13 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     protected float maxSpeed = 0.0f;
     protected float grip = 1.0f;
     protected float weight = 100.0f;
+
+    // --- DRIFT ESTILO MARIO KART ---
+    protected boolean isDrifting = false;   // ¿Estamos en drift activo?
+    protected int driftDir = 0;             // Dirección bloqueada: -1 = izq, +1 = der
+    protected float driftAngle = 0.0f;      // Ángulo de apertura acumulado (0 = cerrado)
+    // Velocidad angular propia del drift, independiente del steering normal
+    protected float driftYawRate = 0.0f;
 
     // --- SISTEMA DE MARCHAS ---
     protected int currentGear = 1;
@@ -276,6 +283,30 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
                             net.minecraft.particle.ParticleTypes.LARGE_SMOKE,
                             this.getX() + ox, this.getY() + this.getHeight() * 0.8, this.getZ() + oz,
                             0, 0.04, 0);
+                }
+            }
+
+            // --- PARTÍCULAS DE DERRAPE (CLIENTE) ---
+            if (isDrifting && Math.abs(forwardSpeed) > 0.15) {
+                net.minecraft.util.math.random.Random rand = this.getWorld().getRandom();
+                // Calcular posición trasera del vehículo (aproximada)
+                double angle = Math.toRadians(this.getYaw());
+                double ox = Math.sin(angle) * 1.2;
+                double oz = -Math.cos(angle) * 1.2;
+
+                // También partículas laterales según la dirección del drift
+                double sideAngle = angle + Math.PI / 2.0 * driftDir;
+                double sx = Math.sin(sideAngle) * 0.6;
+                double sz = -Math.cos(sideAngle) * 0.6;
+
+                for (int i = 0; i < 3; i++) {
+                    this.getWorld().addParticle(
+                        net.minecraft.particle.ParticleTypes.SMOKE,
+                        this.getX() + ox + sx + (rand.nextDouble() - 0.5) * 0.4,
+                        this.getY(),
+                        this.getZ() + oz + sz + (rand.nextDouble() - 0.5) * 0.4,
+                        0, 0.01, 0
+                    );
                 }
             }
         }
@@ -523,15 +554,47 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         if (Math.abs(forwardSpeed) < 0.001) forwardSpeed = 0;
 
         float speedRatio = (float) Math.min(1.0, absSpeed / safeMaxSpeed);
-        // El giro cae un 85% a máxima velocidad (Subviraje)
-        float maxSteerRate = (6.0f + grip * 2.5f) * (1.0f - (float) Math.pow(speedRatio, 1.2) * 0.85f);
+        // El giro cae un 85% a máxima velocidad (Subviraje natural)
+        float baseSteerRate = (6.0f + grip * 2.5f) * (1.0f - (float) Math.pow(speedRatio, 1.2) * 0.85f);
+
+        // ======================================================
+        // --- DRIFT ESTILO MARIO KART ---
+        // ======================================================
+
+        // FASE 1: Gestión del Estado de Drift
+        //   - Entrada: Espacio + (A o D) con velocidad suficiente
+        //   - Dirección bloqueada una vez dentro (driftDir)
+        //   - Salida: al soltar Espacio
+        boolean canStartDrift = inputJump && absSpeed > 0.12 && (inputLeft || inputRight);
+
+        if (!isDrifting) {
+            if (canStartDrift) {
+                isDrifting = true;
+                driftDir = inputLeft ? -1 : 1;
+                driftAngle = 12.0f * driftDir; // Ángulo inicial ya abierto
+                driftYawRate = 0.0f;
+            }
+        } else {
+            if (!inputJump) { // Salir del drift al soltar Espacio
+                isDrifting = false;
+                driftDir = 0;
+                driftAngle = 0.0f;
+                driftYawRate = 0.0f;
+            }
+        }
+
+        // --------------------------------------------------------
+        // FASE 2: Steering normal (siempre activo)
+        // --------------------------------------------------------
+        float maxSteerRate = baseSteerRate;
 
         float steerTarget = 0;
-        if (inputLeft)
-            steerTarget = -maxSteerRate;
-        if (inputRight)
-            steerTarget = maxSteerRate;
-        steering = steering + (steerTarget - steering) * 0.25f;
+        if (inputLeft)  steerTarget = -maxSteerRate;
+        if (inputRight) steerTarget =  maxSteerRate;
+
+        float steerLerp = isDrifting ? 0.30f : 0.25f;
+        steering = steering + (steerTarget - steering) * steerLerp;
+
         if (!inputLeft && !inputRight)
             steering *= 0.6f;
 
@@ -541,10 +604,64 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             vehicleYaw += steering * 0.4f;
         }
 
+        // --------------------------------------------------------
+        // FASE 3: Física de drift o movimiento normal
+        // --------------------------------------------------------
         double yawRad = Math.toRadians(vehicleYaw);
-        // Sincronización de velocidad con el motor de red de Minecraft
-        this.setVelocity(-Math.sin(yawRad) * forwardSpeed, this.getVelocity().y - 0.04,
-                Math.cos(yawRad) * forwardSpeed);
+        Vec3d currentVel = this.getVelocity();
+        double finalVX, finalVZ;
+
+        if (isDrifting) {
+            // --- 3a: Apertura / cierre del ángulo de drift ---
+            // Tecla contraria al driftDir → abre (giro más amplio, hasta ~50°)
+            // Misma tecla que driftDir → cierra (giro más cerrado, hasta ~10°)
+            // Sin tecla lateral → posición media neutra (~25°)
+            boolean pressingWide   = (driftDir == -1 && inputRight) || (driftDir == 1 && inputLeft);
+            boolean pressingNarrow = (driftDir == -1 && inputLeft)  || (driftDir == 1 && inputRight);
+
+            float angleTarget;
+            if (pressingWide)        angleTarget = 50.0f * driftDir;
+            else if (pressingNarrow) angleTarget = 10.0f * driftDir;
+            else                     angleTarget = 25.0f * driftDir;
+
+            driftAngle = MathHelper.lerp(0.06f, driftAngle, angleTarget);
+
+            // --- 3b: Pivote adicional del morro por el drift ---
+            float driftYawContrib = driftAngle * 0.04f; // grados/tick extras
+            vehicleYaw += driftYawContrib;
+            yawRad = Math.toRadians(vehicleYaw);
+
+            // --- 3c: Vector de velocidad = morro + deslizamiento lateral ---
+            double noseVX = -Math.sin(yawRad) * forwardSpeed;
+            double noseVZ =  Math.cos(yawRad) * forwardSpeed;
+
+            // Perpendicular al morro, hacia el exterior del drift
+            double sideRad = yawRad + (Math.PI / 2.0) * (-driftDir);
+            double lateralIntensity = Math.abs(driftAngle) / 50.0; // 0..1
+            double sideSpeed = forwardSpeed * MathHelper.clamp(lateralIntensity * 0.55, 0.0, 0.55);
+            double sideVX = -Math.sin(sideRad) * sideSpeed;
+            double sideVZ =  Math.cos(sideRad) * sideSpeed;
+
+            double targetVX = noseVX + sideVX;
+            double targetVZ = noseVZ + sideVZ;
+
+            // Inercia baja → el deslizamiento lateral es muy notorio
+            finalVX = MathHelper.lerp(0.20f, currentVel.x, targetVX);
+            finalVZ = MathHelper.lerp(0.20f, currentVel.z, targetVZ);
+
+            // El drift NO frena (rozamiento cosmético mínimo)
+            forwardSpeed *= 0.9995;
+
+        } else {
+            // --- Movimiento normal (alta alineación con el morro) ---
+            double targetVX = -Math.sin(yawRad) * forwardSpeed;
+            double targetVZ =  Math.cos(yawRad) * forwardSpeed;
+
+            finalVX = MathHelper.lerp(0.96f, currentVel.x, targetVX);
+            finalVZ = MathHelper.lerp(0.96f, currentVel.z, targetVZ);
+        }
+
+        this.setVelocity(finalVX, currentVel.y - 0.04, finalVZ);
         this.velocityModified = true;
         this.velocityDirty = true; // FORZAR PAQUETE DE VELOCIDAD PARA EVITAR STUTTER
 
@@ -687,11 +804,12 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         buf.writeInt(this.getId());
     }
 
-    public void setInputs(boolean f, boolean b, boolean l, boolean r) {
+    public void setInputs(boolean f, boolean b, boolean l, boolean r, boolean j) {
         this.inputForward = f;
         this.inputBackward = b;
         this.inputLeft = l;
         this.inputRight = r;
+        this.inputJump = j;
     }
 
     @Override
