@@ -42,18 +42,30 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
-    protected static final TrackedData<Integer> COLOR = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    protected static final TrackedData<Float> AERODYNAMICS = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    protected static final TrackedData<Float> FUEL = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Float> SYNC_YAW = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Integer> GEAR = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    public static final TrackedData<Float> RPM_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Float> CHASSIS_HEALTH = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Boolean> IS_DESTROYED = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
-    public static final TrackedData<Integer> OCCUPIED_SLOTS = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    public static final TrackedData<Float> ACCEL_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Float> MAX_SPEED_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
-    public static final TrackedData<Float> FORWARD_SPEED_SYNC = DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
+    protected static final TrackedData<Integer> COLOR = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.INTEGER);
+    protected static final TrackedData<Float> AERODYNAMICS = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.FLOAT);
+    protected static final TrackedData<Float> FUEL = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> SYNC_YAW = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Integer> GEAR = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.INTEGER);
+    public static final TrackedData<Float> RPM_SYNC = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> CHASSIS_HEALTH = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Boolean> IS_DESTROYED = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.BOOLEAN);
+    public static final TrackedData<Integer> OCCUPIED_SLOTS = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.INTEGER);
+    public static final TrackedData<Float> ACCEL_SYNC = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> MAX_SPEED_SYNC = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.FLOAT);
+    public static final TrackedData<Float> FORWARD_SPEED_SYNC = DataTracker.registerData(AbstractVehicleEntity.class,
+            TrackedDataHandlerRegistry.FLOAT);
 
     public static final float MAX_CHASSIS_HEALTH = 300.0f;
 
@@ -69,9 +81,9 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     protected float weight = 100.0f;
 
     // --- DRIFT ESTILO MARIO KART ---
-    protected boolean isDrifting = false;   // ¿Estamos en drift activo?
-    protected int driftDir = 0;             // Dirección bloqueada: -1 = izq, +1 = der
-    protected float driftAngle = 0.0f;      // Ángulo de apertura acumulado (0 = cerrado)
+    protected boolean isDrifting = false; // ¿Estamos en drift activo?
+    protected int driftDir = 0; // Dirección bloqueada: -1 = izq, +1 = der
+    protected float driftAngle = 0.0f; // Ángulo de apertura acumulado (0 = cerrado)
     // Velocidad angular propia del drift, independiente del steering normal
     protected float driftYawRate = 0.0f;
 
@@ -150,8 +162,12 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         return this.currentGear;
     }
 
-    public float getForwardSpeed() {
-        return (float)this.forwardSpeed;
+    public double getForwardSpeed() {
+        return (float) this.forwardSpeed;
+    }
+
+    public float getGrip() {
+        return this.grip;
     }
 
     public float getFuel() {
@@ -188,16 +204,16 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         }
 
         this.weight = getBaseWeight() + getAttachmentWeight() + 30.0f;
-        
+
         // El peso de referencia es 100. A más peso, menos aceleración y punta.
         float weightFactor = 100.0f / this.weight;
 
         if (hasEngine && hasWheels) {
             this.grip = Math.max(0.1f, (tireGrip / tireWear));
-            
+
             // La potencia base se ve afectada directamente por el factor de peso
             this.accelerationStat = (0.024f * enginePower) * weightFactor;
-            this.maxSpeed = (0.90f * enginePower) * (float)Math.sqrt(weightFactor); 
+            this.maxSpeed = (0.90f * enginePower) * (float) Math.sqrt(weightFactor);
         } else {
             this.grip = 0.0f;
             this.accelerationStat = 0.0f;
@@ -244,7 +260,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
 
     @Override
     public void tick() {
-        if (!this.getWorld().isClient && wrenchTimer > 0) wrenchTimer--;
+        if (!this.getWorld().isClient && wrenchTimer > 0)
+            wrenchTimer--;
         if (this.getWorld().isClient) {
             this.vehicleYaw = this.dataTracker.get(SYNC_YAW);
             this.setYaw(this.vehicleYaw);
@@ -269,8 +286,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
                         this.getX(), this.getY(), this.getZ(),
                         net.minecraft.sound.SoundEvents.BLOCK_FIRE_EXTINGUISH,
                         net.minecraft.sound.SoundCategory.NEUTRAL,
-                        1.0f, pitch, false 
-                );
+                        1.0f, pitch, false);
             }
 
             if (this.age % 3 == 0) {
@@ -303,12 +319,11 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
 
                 for (int i = 0; i < 3; i++) {
                     this.getWorld().addParticle(
-                        net.minecraft.particle.ParticleTypes.SMOKE,
-                        this.getX() + ox + sx + (rand.nextDouble() - 0.5) * 0.4,
-                        this.getY(),
-                        this.getZ() + oz + sz + (rand.nextDouble() - 0.5) * 0.4,
-                        0, 0.01, 0
-                    );
+                            net.minecraft.particle.ParticleTypes.SMOKE,
+                            this.getX() + ox + sx + (rand.nextDouble() - 0.5) * 0.4,
+                            this.getY(),
+                            this.getZ() + oz + sz + (rand.nextDouble() - 0.5) * 0.4,
+                            0, 0.01, 0);
                 }
             }
         }
@@ -320,7 +335,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         float fuel = getFuel();
 
         // En el cliente usamos los datos sincronizados para canMove
-        // En el servidor podríamos usar los reales, pero los sincronizados ya son copia.
+        // En el servidor podríamos usar los reales, pero los sincronizados ya son
+        // copia.
         boolean canMove = !destroyed && syncedAccel > 0 && syncedMax > 0 && fuel > 0;
 
         // Actualizar variables locales en cliente para que handlePhysics() funcione
@@ -329,7 +345,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             this.maxSpeed = syncedMax;
             if (!isLocalPlayerDriving()) {
                 // Suavizado del cambio de velocidad sincronizada para quitar el micro-stutter
-                this.forwardSpeed = MathHelper.lerp(0.3f, (float)this.forwardSpeed, this.dataTracker.get(FORWARD_SPEED_SYNC));
+                this.forwardSpeed = MathHelper.lerp(0.3f, (float) this.forwardSpeed,
+                        this.dataTracker.get(FORWARD_SPEED_SYNC));
             }
         }
 
@@ -357,14 +374,23 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
                     applyWear(getWheelStack(), 0.00002f);
                 }
             } else {
-                // Si no hay pasajeros, aplicar rozamiento natural (coast)
+                // Si no hay pasajeros, aplicar rozamiento natural (coast) y parking
+                this.currentGear = 0;
+                this.dataTracker.set(GEAR, 0);
+
                 if (Math.abs(forwardSpeed) > 0.01) {
-                    applyFriction(0.94f); // Bajado de 0.98 a 0.94 para frenar antes
+                    // El rozamiento ahora depende del AGARRE (Grip)
+                    // A más grip, el coche frena antes por el rozamiento con el suelo.
+                    float gripFriction = MathHelper.clamp(0.92f - (this.grip * 0.05f), 0.70f, 0.96f);
+                    applyFriction(gripFriction);
                 } else {
                     forwardSpeed = 0;
+                    // FRENAR EMPUJONES EXTERNOS: Reducimos la inercia drásticamente cada tick
+                    Vec3d v = this.getVelocity();
+                    this.setVelocity(v.x * 0.5, v.y, v.z * 0.5);
                 }
             }
-            this.dataTracker.set(FORWARD_SPEED_SYNC, (float)this.forwardSpeed);
+            this.dataTracker.set(FORWARD_SPEED_SYNC, (float) this.forwardSpeed);
             this.move(MovementType.SELF, this.getVelocity());
 
             if (!this.isOnGround()) {
@@ -416,10 +442,14 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             ItemStack held = player.getMainHandStack();
             if (held.isOf(ModItems.WRENCH)) {
                 if (wrenchTimer > 0 && lastWrenchPlayer != null && lastWrenchPlayer.equals(player.getUuid())) {
-                    repairOrBreak(); return true;
+                    repairOrBreak();
+                    return true;
                 } else {
-                    wrenchTimer = 40; lastWrenchPlayer = player.getUuid();
-                    player.sendMessage(Text.literal("⚠️ Click IZQUIERDO de nuevo para desguazar").formatted(Formatting.YELLOW), true);
+                    wrenchTimer = 40;
+                    lastWrenchPlayer = player.getUuid();
+                    player.sendMessage(
+                            Text.literal("⚠️ Click IZQUIERDO de nuevo para desguazar").formatted(Formatting.YELLOW),
+                            true);
                     return true;
                 }
             }
@@ -498,20 +528,24 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             if (!this.getWorld().isClient) {
                 this.dataTracker.set(GEAR, currentGear);
             }
-            if (currentGear == 1) shiftTimer = 5;
-            else if (currentGear == -1) shiftTimer = 12;
-            else if (currentGear > 1) shiftTimer = 12; // Cambio normal entre marchas cortas
+            if (currentGear == 1)
+                shiftTimer = 5;
+            else if (currentGear == -1)
+                shiftTimer = 12;
+            else if (currentGear > 1)
+                shiftTimer = 12; // Cambio normal entre marchas cortas
         }
 
         double targetSpeed = 0.0;
-        // Compensación de Inercia: A más velocidad, usamos un lerp ligeramente más alto para vencer la resistencia
+        // Compensación de Inercia: A más velocidad, usamos un lerp ligeramente más alto
+        // para vencer la resistencia
         double speedBonus = (absSpeed / safeMaxSpeed) * 0.01;
         double lerpFactor = accelerationStat + speedBonus;
 
         if (shiftTimer > 0) {
             shiftTimer--;
             targetSpeed = forwardSpeed * 0.98; // Embrague más suave (mantiene más inercia)
-            lerpFactor = 0.05; 
+            lerpFactor = 0.05;
             this.rpm = MathHelper.lerp(0.2f, this.rpm, 0.4f);
         } else {
             float targetRpm = 0.0f;
@@ -522,7 +556,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
                     targetSpeed = maxSpeed;
                 } else if (inputBackward) {
                     targetSpeed = 0;
-                    lerpFactor = accelerationStat * 1.5f; 
+                    lerpFactor = accelerationStat * 1.5f;
                 }
             } else if (currentGear == -1) {
                 if (inputBackward) {
@@ -536,11 +570,22 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             // Cálculo de RPM (Avance o Reversa)
             if ((currentGear >= 1 && inputForward) || (currentGear == -1 && inputBackward)) {
                 float minS = 0, maxS = 1;
-                if (currentGear == 1 || currentGear == -1) { minS = 0.00f; maxS = m1Max; }
-                else if (currentGear == 2) { minS = m1Max; maxS = m2Max; }
-                else if (currentGear == 3) { minS = m2Max; maxS = m3Max; }
-                else if (currentGear == 4) { minS = m3Max; maxS = m4Max; }
-                else if (currentGear == 5) { minS = m4Max; maxS = 1.00f; }
+                if (currentGear == 1 || currentGear == -1) {
+                    minS = 0.00f;
+                    maxS = m1Max;
+                } else if (currentGear == 2) {
+                    minS = m1Max;
+                    maxS = m2Max;
+                } else if (currentGear == 3) {
+                    minS = m2Max;
+                    maxS = m3Max;
+                } else if (currentGear == 4) {
+                    minS = m3Max;
+                    maxS = m4Max;
+                } else if (currentGear == 5) {
+                    minS = m4Max;
+                    maxS = 1.00f;
+                }
 
                 targetRpm = (float) ((speedPercent - minS) / (maxS - minS));
                 targetRpm = MathHelper.clamp(targetRpm, 0.0f, 1.2f);
@@ -554,7 +599,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
                 if (speedPercent > 0.98f) {
                     isLimiting = (this.age % 2 == 0);
                     targetRpm = 0.96f + (this.random.nextFloat() * 0.04f);
-                    // En lugar de lerpFactor 0, usamos uno muy pequeño para mantener la punta sin vibración
+                    // En lugar de lerpFactor 0, usamos uno muy pequeño para mantener la punta sin
+                    // vibración
                     targetSpeed = maxSpeed;
                     lerpFactor = 0.005;
                 }
@@ -565,12 +611,17 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         if (!this.getWorld().isClient) {
             this.dataTracker.set(RPM_SYNC, this.rpm);
         }
+        // Reducir la aceleración durante el drift (al 50%)
+        if (isDrifting) {
+            lerpFactor *= 0.5;
+        }
 
         // --- ACTUALIZACIÓN DE VELOCIDAD FINAL ---
         forwardSpeed = MathHelper.lerp(MathHelper.clamp(lerpFactor, 0, 1), forwardSpeed, targetSpeed);
-        
+
         // Umbral de detención muy bajo para permitir que el tractor empiece a rodar
-        if (Math.abs(forwardSpeed) < 0.001) forwardSpeed = 0;
+        if (Math.abs(forwardSpeed) < 0.001)
+            forwardSpeed = 0;
 
         float speedRatio = (float) Math.min(1.0, absSpeed / safeMaxSpeed);
         // El giro cae un 85% a máxima velocidad (Subviraje natural)
@@ -581,9 +632,9 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         // ======================================================
 
         // FASE 1: Gestión del Estado de Drift
-        //   - Entrada: Espacio + (A o D) con velocidad suficiente
-        //   - Dirección bloqueada una vez dentro (driftDir)
-        //   - Salida: al soltar Espacio
+        // - Entrada: Espacio + (A o D) con velocidad suficiente
+        // - Dirección bloqueada una vez dentro (driftDir)
+        // - Salida: al soltar Espacio
         boolean canStartDrift = inputJump && absSpeed > 0.12 && (inputLeft || inputRight);
 
         if (!isDrifting) {
@@ -608,8 +659,10 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         float maxSteerRate = baseSteerRate;
 
         float steerTarget = 0;
-        if (inputLeft)  steerTarget = -maxSteerRate;
-        if (inputRight) steerTarget =  maxSteerRate;
+        if (inputLeft)
+            steerTarget = -maxSteerRate;
+        if (inputRight)
+            steerTarget = maxSteerRate;
 
         float steerLerp = isDrifting ? 0.30f : 0.25f;
         steering = steering + (steerTarget - steering) * steerLerp;
@@ -618,7 +671,10 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             steering *= 0.6f;
 
         if (Math.abs(forwardSpeed) > 0.002) {
-            vehicleYaw += steering * Math.signum(forwardSpeed);
+            // vehicleYaw += steering * Math.signum(forwardSpeed);
+            // reduce el impacto del volante un 80% solo durante el drift:
+            float steerFactor = isDrifting ? 0.8f : 1.0f;
+            vehicleYaw += (steering * steerFactor) * Math.signum(forwardSpeed);
         } else if (inputLeft || inputRight) {
             vehicleYaw += steering * 0.4f;
         }
@@ -635,31 +691,38 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
             // Tecla contraria al driftDir → abre (giro más amplio, hasta ~50°)
             // Misma tecla que driftDir → cierra (giro más cerrado, hasta ~10°)
             // Sin tecla lateral → posición media neutra (~25°)
-            boolean pressingWide   = (driftDir == -1 && inputRight) || (driftDir == 1 && inputLeft);
-            boolean pressingNarrow = (driftDir == -1 && inputLeft)  || (driftDir == 1 && inputRight);
+            boolean pressingWide = (driftDir == -1 && inputRight) || (driftDir == 1 && inputLeft);
+            boolean pressingNarrow = (driftDir == -1 && inputLeft) || (driftDir == 1 && inputRight);
 
             float angleTarget;
-            if (pressingWide)        angleTarget = 50.0f * driftDir;
-            else if (pressingNarrow) angleTarget = 10.0f * driftDir;
-            else                     angleTarget = 25.0f * driftDir;
+            if (pressingWide)
+                angleTarget = 50.0f * driftDir;
+            else if (pressingNarrow)
+                angleTarget = 10.0f * driftDir;
+            else
+                angleTarget = 25.0f * driftDir;
 
             driftAngle = MathHelper.lerp(0.06f, driftAngle, angleTarget);
 
             // --- 3b: Pivote adicional del morro por el drift ---
-            float driftYawContrib = driftAngle * 0.04f; // grados/tick extras
+            // A menos velocidad, le damos un "boost" extra al pivote del drift para que
+            // venza al volante
+            float driftPowerFactor = isDrifting ? MathHelper.lerp((float) speedPercent,
+                    2.0f, 1.0f) : 1.0f;
+            float driftYawContrib = driftAngle * 0.04f * driftPowerFactor; // grados/tick extras
             vehicleYaw += driftYawContrib;
             yawRad = Math.toRadians(vehicleYaw);
 
             // --- 3c: Vector de velocidad = morro + deslizamiento lateral ---
             double noseVX = -Math.sin(yawRad) * forwardSpeed;
-            double noseVZ =  Math.cos(yawRad) * forwardSpeed;
+            double noseVZ = Math.cos(yawRad) * forwardSpeed;
 
             // Perpendicular al morro, hacia el exterior del drift
             double sideRad = yawRad + (Math.PI / 2.0) * (-driftDir);
             double lateralIntensity = Math.abs(driftAngle) / 50.0; // 0..1
             double sideSpeed = forwardSpeed * MathHelper.clamp(lateralIntensity * 0.55, 0.0, 0.55);
             double sideVX = -Math.sin(sideRad) * sideSpeed;
-            double sideVZ =  Math.cos(sideRad) * sideSpeed;
+            double sideVZ = Math.cos(sideRad) * sideSpeed;
 
             double targetVX = noseVX + sideVX;
             double targetVZ = noseVZ + sideVZ;
@@ -674,7 +737,7 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         } else {
             // --- Movimiento normal (alta alineación con el morro) ---
             double targetVX = -Math.sin(yawRad) * forwardSpeed;
-            double targetVZ =  Math.cos(yawRad) * forwardSpeed;
+            double targetVZ = Math.cos(yawRad) * forwardSpeed;
 
             finalVX = MathHelper.lerp(0.96f, currentVel.x, targetVX);
             finalVZ = MathHelper.lerp(0.96f, currentVel.z, targetVZ);
@@ -711,9 +774,11 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
     @Override
     protected void removePassenger(Entity passenger) {
         super.removePassenger(passenger);
-        if (!this.getWorld().isClient && passenger instanceof ServerPlayerEntity player) {
-            // Forzar actualización de posición del jugador al bajar para evitar teleport
-            player.networkHandler.requestTeleport(this.getX(), this.getY(), this.getZ(), player.getYaw(), player.getPitch());
+        if (!this.getWorld().isClient) {
+            // Marcamos el vehículo como sucio para forzar una sincronización de posición final
+            // y evitar el "snapback" o teletransporte del jugador y el coche al bajar.
+            this.velocityDirty = true;
+            this.velocityModified = true;
         }
     }
 
@@ -853,7 +918,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         if (nbt.contains("IsDestroyed"))
             this.dataTracker.set(IS_DESTROYED, nbt.getBoolean("IsDestroyed"));
 
-        net.minecraft.util.collection.DefaultedList<ItemStack> stacks = net.minecraft.util.collection.DefaultedList.ofSize(this.inventory.size(), ItemStack.EMPTY);
+        net.minecraft.util.collection.DefaultedList<ItemStack> stacks = net.minecraft.util.collection.DefaultedList
+                .ofSize(this.inventory.size(), ItemStack.EMPTY);
         net.minecraft.inventory.Inventories.readNbt(nbt, stacks);
         for (int i = 0; i < stacks.size(); i++) {
             this.inventory.setStack(i, stacks.get(i));
@@ -874,7 +940,8 @@ public abstract class AbstractVehicleEntity extends Entity implements ExtendedSc
         nbt.putFloat("ChassisHealth", this.dataTracker.get(CHASSIS_HEALTH));
         nbt.putBoolean("IsDestroyed", this.dataTracker.get(IS_DESTROYED));
 
-        net.minecraft.util.collection.DefaultedList<ItemStack> stacks = net.minecraft.util.collection.DefaultedList.ofSize(this.inventory.size(), ItemStack.EMPTY);
+        net.minecraft.util.collection.DefaultedList<ItemStack> stacks = net.minecraft.util.collection.DefaultedList
+                .ofSize(this.inventory.size(), ItemStack.EMPTY);
         for (int i = 0; i < this.inventory.size(); i++) {
             stacks.set(i, this.inventory.getStack(i));
         }
